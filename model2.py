@@ -128,9 +128,9 @@ class SchellingAgent(Agent):
     def find_new_location(self):
 
         self.freeCellsRank = pd.DataFrame(0, index=np.arange(self.model.num_free_cells), columns=['x','y','happiness'])
-        similar = 0
         i = 0
         
+        print(f"Agent in pos {self.pos}, di tipo {self.type}")
         #for each cell
         for cell in self.model.grid.coord_iter():
             
@@ -138,17 +138,26 @@ class SchellingAgent(Agent):
             
             #if it is free
             if(self.model.grid.is_cell_empty((x,y))):
+                print(f"Sono in {x,y}")
                 #record coords
                 self.freeCellsRank.iloc[i]['x'] = x
                 self.freeCellsRank.iloc[i]['y'] = y
             
                 #compute the happiness that the agent would have in that cell
                 neighbors = self.model.grid.iter_neighbors((x,y), "moore")      
+                similar = 0
                 for neighbor in neighbors:
-                    if neighbor.type == self.type:
-                        similar += 1
+                    if(neighbor.pos == self.pos):
+                        pass
+                    else:
+                        print(f"Neigh è {neighbor.pos}")
+                        if neighbor.type == self.type:
+                            similar += 1
+                
+                print(f"Similar sono {similar}")
 
                 happiness = similar/self.tot_neighbors
+                print(f"Happiness è {happiness}")
                 self.freeCellsRank.iloc[i]['happiness'] = happiness   
                
                 i+=1
