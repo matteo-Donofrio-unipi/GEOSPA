@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import random
 
 from mesa import Model, Agent
@@ -71,7 +72,8 @@ class SchellingModel(Model):
                 self.grid.place_agent(agent, (x, y))    #Positions an agent on the grid, and set its pos variable.                        
                 self.schedule.add(agent)                   #Add an Agent object to the schedule.
 
-        self.num_free_cells = self.model.girdSize - self.model.schedule.get_agent_count()
+        self.num_free_cells = self.girdSize - self.schedule.get_agent_count()
+
 
 
     def step(self):
@@ -83,6 +85,7 @@ class SchellingModel(Model):
         self.datacollector.collect(self)                            #Collect all the data for the given model object    
         if self.total_happy == self.schedule.get_agent_count():     #Halt condition
             self.running = False
+        self.show()
 
 
     def show(self):
@@ -120,31 +123,38 @@ class SchellingAgent(Agent):
         self.pos = pos
         self.type = agent_type
         self.tot_neighbors=8
-        self.freeCellsRank = pd.DataFrame(0, index=np.arange(self.model.num_free_cells), columns=['x','y','happiness'])
+        self.freeCellsRank = None
         
     def find_new_location(self):
 
+        self.freeCellsRank = pd.DataFrame(0, index=np.arange(self.model.num_free_cells), columns=['x','y','happiness'])
+        similar = 0
         i = 0
-        #for each free cell
+        
+        #for each cell
         for cell in self.model.grid.coord_iter():
             
             cell_content, x, y = cell
             
-            if(self.model.grid.is_cell_empty((x,y))): #is free
-               self.freeCellsRank.iloc[i]['x'] = x
-               self.freeCellsRank.iloc[i]['y'] = y
+            #if it is free
+            if(self.model.grid.is_cell_empty((x,y))):
+                #record coords
+                self.freeCellsRank.iloc[i]['x'] = x
+                self.freeCellsRank.iloc[i]['y'] = y
             
-               #compute the happiness that the agent would have in that cell
-               neighbors = self.model.grid.iter_neighbors((x,y), "moore")      
-               for neighbor in neighbors:
-                   if neighbor.type == self.type:
-                   similar += 1
+                #compute the happiness that the agent would have in that cell
+                neighbors = self.model.grid.iter_neighbors((x,y), "moore")      
+                for neighbor in neighbors:
+                    if neighbor.type == self.type:
+                        similar += 1
 
-               happiness = similar/self.tot_neighbors
-               self.freeCellsRank.iloc[i]['happiness'] = happiness   
+                happiness = similar/self.tot_neighbors
+                self.freeCellsRank.iloc[i]['happiness'] = happiness   
                
-               i++
-        self.freeCellsRank.sort_values(by="happiness", inplace = True)
+                i+=1
+                
+        self.freeCellsRank.sort_values(by="happiness", inplace = True, ascending = False)
+        self.freeCellsRank.reset_index(inplace = True)
         print(self.freeCellsRank)
         return self.freeCellsRank.iloc[0][["x","y"]].values[0], self.freeCellsRank.iloc[0][["x","y"]].values[1]
                
