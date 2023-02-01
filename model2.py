@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.colors as colors
 
+VERBOSE = 0
+
 class SchellingModel(Model):
     '''
     Model class for the Schelling segregation model.
@@ -85,7 +87,7 @@ class SchellingModel(Model):
         self.datacollector.collect(self)                            #Collect all the data for the given model object    
         if self.total_happy == self.schedule.get_agent_count():     #Halt condition
             self.running = False
-        self.show()
+        #self.show()
 
 
     def show(self):
@@ -128,9 +130,12 @@ class SchellingAgent(Agent):
     def find_new_location(self):
 
         self.freeCellsRank = pd.DataFrame(0, index=np.arange(self.model.num_free_cells), columns=['x','y','happiness'])
+        if(VERBOSE):
+            print("STAMPA RANK")
+            print(self.freeCellsRank)
         i = 0
         
-        print(f"Agent in pos {self.pos}, di tipo {self.type}")
+        #print(f"Agent in pos {self.pos}, di tipo {self.type}")
         #for each cell
         for cell in self.model.grid.coord_iter():
             
@@ -138,11 +143,11 @@ class SchellingAgent(Agent):
             
             #if it is free
             if(self.model.grid.is_cell_empty((x,y))):
-                print(f"Sono in {x,y}")
+                #print(f"Sono in {x,y}")
                 #record coords
-                self.freeCellsRank.iloc[i]['x'] = x
-                self.freeCellsRank.iloc[i]['y'] = y
-            
+                self.freeCellsRank.iat[i,0] = x
+                self.freeCellsRank.iat[i,1] = y
+                
                 #compute the happiness that the agent would have in that cell
                 neighbors = self.model.grid.iter_neighbors((x,y), "moore")      
                 similar = 0
@@ -150,22 +155,26 @@ class SchellingAgent(Agent):
                     if(neighbor.pos == self.pos):
                         pass
                     else:
-                        print(f"Neigh è {neighbor.pos}")
+                        #print(f"Neigh è {neighbor.pos}")
                         if neighbor.type == self.type:
                             similar += 1
                 
-                print(f"Similar sono {similar}")
+                #print(f"Similar sono {similar}")
 
-                happiness = similar/self.tot_neighbors
-                print(f"Happiness è {happiness}")
-                self.freeCellsRank.iloc[i]['happiness'] = happiness   
+                happiness = float(similar/self.tot_neighbors)
+                #print(f"Happiness è {happiness}")
+
+                self.freeCellsRank.iat[i,2] = happiness
+                
                
                 i+=1
-                
+        #print("FUORI DAL FOR")        
         self.freeCellsRank.sort_values(by="happiness", inplace = True, ascending = False)
-        self.freeCellsRank.reset_index(inplace = True)
-        print(self.freeCellsRank)
-        return self.freeCellsRank.iloc[0][["x","y"]].values[0], self.freeCellsRank.iloc[0][["x","y"]].values[1]
+        self.freeCellsRank.reset_index(inplace = True, drop=True)
+        if(VERBOSE):
+            print(self.freeCellsRank)
+        self.segregation = self.freeCellsRank.iloc[0]["happiness"]
+        return (int(self.freeCellsRank.iloc[0]["x"]), int(self.freeCellsRank.iloc[0]["y"]))
                
                
              
@@ -181,6 +190,8 @@ class SchellingAgent(Agent):
         if self.segregation < self.model.tolerance_treshold:
             #self.model.grid.move_to_empty(self)
             new_loc_x, new_loc_y = self.find_new_location()
+            #print("GOT NEW LOC ")
+            #print(new_loc_x,new_loc_y)
             self.model.grid.move_agent(self, (new_loc_x, new_loc_y))
         else:
             self.model.total_happy += 1
