@@ -11,24 +11,31 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.colors as colors
 
-VERBOSE = 1
+
 
 class SchellingModel(Model):
     '''
     Model class for the Schelling segregation model.
     '''
-    def __init__(self, side =10, density=0.7, minority_pc=0.3, tolerance_treshold =0.3):
+    def __init__(self, side =10, density=0.7, minority_pc=0.3, homophily =0.3, relocation_policy="pure_random", neighborhood_type = 'abs', verbose = 0):
         '''
         side: side of the grid square
         density: density of population
         minority_pc: percentage of minority type (2 types in ths case) =>  minority: 0 = all blue, 1 = all red
-        tolerance_treshold: percentage of neighbours requested of same type
+        homophily: percentage of neighbours requested of same type
         '''
 
+        if(relocation_policy  in ["pure_random","mild_random","min_gain","max_gain"]):
+            self.relocation_policy = relocation_policy 
+        else:
+            raise Exception("Error on the given policy name") 
+
+        self.neighborhood_type = neighborhood_type
+        self.verbose = verbose
         self.side = side
         self.density = density
         self.minority_pc = minority_pc
-        self.tolerance_treshold = tolerance_treshold
+        self.homophily = homophily
         self.girdSize = side*side
         
         #A scheduler which activates each agent once per step, in random order, with the order reshuffled every step
@@ -130,12 +137,13 @@ class SchellingAgent(Agent):
     def find_new_location(self):
 
         self.freeCellsRank = pd.DataFrame(0, index=np.arange(self.model.num_free_cells), columns=['x','y','happiness'])
-        if(VERBOSE):
+        if(self.model.verbose):
             print("STAMPA RANK")
             print(self.freeCellsRank)
         i = 0
-        
-        print(f"Agent in pos {self.pos}, di tipo {self.type}")
+
+        if(self.model.verbose):
+            print(f"Agent in pos {self.pos}, di tipo {self.type}")
 
 
         #for each cell in the whole grid
@@ -145,7 +153,7 @@ class SchellingAgent(Agent):
             
             #if it is free
             if(self.model.grid.is_cell_empty((x,y))):
-                if(VERBOSE):
+                if(self.model.verbose):
                     print(f"Sono in {x,y}")
 
                 #record coords in the freeCellsRank df
@@ -154,7 +162,7 @@ class SchellingAgent(Agent):
                 
                 #compute the happiness that the agent would have in that cell
                 num_neighbors = len(self.model.grid.get_neighbors((x,y), moore = True))
-                if(VERBOSE): 
+                if(self.model.verbose): 
                     print(f"Num neigh contando anche me: {num_neighbors}")
 
                 neighbors = self.model.grid.iter_neighbors((x,y), "moore")      
@@ -164,16 +172,25 @@ class SchellingAgent(Agent):
                         num_neighbors -=1
                         pass
                     else:
-                        print(f"Neigh è {neighbor.pos}")
+                        if(self.model.verbose):
+                            print(f"Neigh è {neighbor.pos}")
                         if neighbor.type == self.type:
                             similar += 1
-                if(VERBOSE):             
+                            
+                if(self.model.verbose):             
                     print(f"Num neigh senza contare anche me: {num_neighbors}")
                     print(f"Similar sono {similar}")
 
                 #compute the happiness the agent would have in that blank cell
-                happiness = float(similar/self.tot_neighbors)
-                if(VERBOSE): 
+                if(self.model.neighborhood_type=="abs"):
+                    happiness = similar/self.tot_neighbors
+                else:
+                    if(num_neighbors > 0):
+                        happiness = similar/num_neighbors
+                    else:
+                        happiness = 0
+
+                if(self.model.verbose): 
                     print(f"Happiness è {happiness}")
 
                 #associate the happiness to that blank cell
@@ -181,34 +198,68 @@ class SchellingAgent(Agent):
                 
                 i+=1
 
-        #print("FUORI DAL FOR")        
+        #now for each blank cell has been computed its happiness        
         self.freeCellsRank.sort_values(by="happiness", inplace = True, ascending = False)
         self.freeCellsRank.reset_index(inplace = True, drop=True)
-        if(VERBOSE):
+        if(self.model.verbose):
             print(f"freeCellsRank è {self.freeCellsRank}")
+
         self.segregation = self.freeCellsRank.iloc[0]["happiness"]
-        return (int(self.freeCellsRank.iloc[0]["x"]), int(self.freeCellsRank.iloc[0]["y"]))
+        
+        #choose the new location according to the chosen policy
+        #["pure_random","mild_random","min_gain","max_gain"]:
+        df_happy = self.freeCellsRank[self.freeCellsRank["happiness"]>=self.model.homophily]
+        df_happy.reset_index(inplace=True,  drop=True)
+        
+        if(self.model.verbose):
+            print(f"df_happy è {df_happy}")
+        
+        if(df_happy.empty):
+            raise Exception("ERROR: No location available with the given homophily")
+
+        if(self.model.relocation_policy == "mild_random"):
+            index = random.randint(0, len(df_happy)-1)     
+            ret_x = int(df_happy.iloc[index]["x"])
+            ret_y = int(df_happy.iloc[index]["y"])
+
+        if(self.model.relocation_policy == "min_gain"):     
+            ret_x = int(df_happy.iloc[-1]["x"])
+            ret_y = int(df_happy.iloc[-1]["y"])
+
+        if(self.model.relocation_policy == "max_gain"):
+            ret_x = int(df_happy.iloc[0]["x"])
+            ret_y = int(df_happy.iloc[0]["y"])
+        return ret_x, ret_y
                
                
              
     def step(self):
-        similar = 0                                                         #Reset similar counting
+        similar = 0      
+                                                           #Reset similar counting
         neighbors = self.model.grid.iter_neighbors(self.pos, "moore")       #Return an iterator over neighbors to a certain point
+
+        num_neighbors = len(self.model.grid.get_neighbors(self.pos, moore = True))
+        print("LEN NEIHG")
+        print(num_neighbors)
         for neighbor in neighbors:
             if neighbor.type == self.type:
                 similar += 1
 
-        self.segregation = similar/self.tot_neighbors
+        if(self.model.neighborhood_type=="abs"):
+            self.segregation = similar/self.tot_neighbors
+        else:
+            if(num_neighbors>0):
+                self.segregation = similar/num_neighbors
+            else:
+                self.segregation = 0
 
-        if self.segregation < self.model.tolerance_treshold:
-            #self.model.grid.move_to_empty(self)
-            new_loc_x, new_loc_y = self.find_new_location()
-            if(VERBOSE): 
-                print(f"got new location at {new_loc_x, new_loc_y}")
-            self.model.grid.move_agent(self, (new_loc_x, new_loc_y))
-
-            ###
-            #self.model.grid.move_to_empty(self)
-            ##
+        if self.segregation < self.model.homophily:
+            if(self.model.relocation_policy == "pure_random"):
+                self.model.grid.move_to_empty(self)
+            else:
+                new_loc_x, new_loc_y = self.find_new_location()
+                if(self.model.verbose): 
+                    print(f"got new location at {new_loc_x, new_loc_y}")
+                self.model.grid.move_agent(self, (new_loc_x, new_loc_y))
         else:
             self.model.total_happy += 1
