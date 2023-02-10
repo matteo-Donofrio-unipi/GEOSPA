@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import random
+import time
 
 from mesa import Model, Agent
 from mesa.time import RandomActivation
@@ -11,13 +12,13 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.colors as colors
 
-
+VERBOSE_ERROR = 0
 
 class SchellingModel(Model):
     '''
     Model class for the Schelling segregation model.
     '''
-    def __init__(self, side =10, density=0.7, minority_pc=0.3, homophily =0.3, relocation_policy="pure_random", neighborhood_type = 'abs', verbose = 0):
+    def __init__(self, side =10, density=0.7, minority_pc=0.3, homophily =0.3, relocation_policy="pure_random", neighborhood_type = 'abs', verbose = 0, skip_if_not_happy = False):
         '''
         side: side of the grid square
         density: density of population
@@ -30,6 +31,7 @@ class SchellingModel(Model):
         else:
             raise Exception("Error on the given policy name") 
 
+        self.skip_if_not_happy = skip_if_not_happy
         self.neighborhood_type = neighborhood_type
         self.verbose = verbose
         self.side = side
@@ -37,6 +39,7 @@ class SchellingModel(Model):
         self.minority_pc = minority_pc
         self.homophily = homophily
         self.girdSize = side*side
+        self.elapsed_step_time = 0
         
         #A scheduler which activates each agent once per step, in random order, with the order reshuffled every step
         self.schedule = RandomActivation(self)
@@ -52,7 +55,8 @@ class SchellingModel(Model):
 
         self.datacollector = DataCollector(
             {"perc_happy": lambda m: m.total_happy/m.schedule.get_agent_count(),
-             "tot_seg": lambda m: np.mean([a.segregation for a in self.schedule.agents])},
+             "tot_seg": lambda m: np.mean([a.segregation for a in self.schedule.agents]),
+             "elapsed_step_time": lambda m: self.elapsed_step_time},
             {"x": lambda a: a.pos[0], 
              "y": lambda a: a.pos[1],
              "segregation": lambda a: a.segregation})
@@ -89,8 +93,10 @@ class SchellingModel(Model):
         '''
         Run one step of the model. If All agents are happy, halt the model.
         '''
-        self.total_happy = 0                                        #Reset counter of happy agents
-        self.schedule.step()                                        #Call agents steps
+        self.total_happy = 0  
+        start_time = time.time() 
+        self.schedule.step() 
+        self.elapsed_step_time = time.time()  - start_time                                        #Call agents steps
         self.datacollector.collect(self)                            #Collect all the data for the given model object    
         if self.total_happy == self.schedule.get_agent_count():     #Halt condition
             self.running = False
@@ -215,7 +221,9 @@ class SchellingAgent(Agent):
             print(f"df_happy è {df_happy}")
         
         if(df_happy.empty):
-            raise Exception("ERROR: No location available with the given homophily")
+            if(VERBOSE_ERROR):
+                print("No happy cells available, no relocation")
+            return (-1,-1)
 
         if(self.model.relocation_policy == "mild_random"):
             index = random.randint(0, len(df_happy)-1)     
@@ -239,8 +247,7 @@ class SchellingAgent(Agent):
         neighbors = self.model.grid.iter_neighbors(self.pos, "moore")       #Return an iterator over neighbors to a certain point
 
         num_neighbors = len(self.model.grid.get_neighbors(self.pos, moore = True))
-        print("LEN NEIHG")
-        print(num_neighbors)
+
         for neighbor in neighbors:
             if neighbor.type == self.type:
                 similar += 1
@@ -260,6 +267,13 @@ class SchellingAgent(Agent):
                 new_loc_x, new_loc_y = self.find_new_location()
                 if(self.model.verbose): 
                     print(f"got new location at {new_loc_x, new_loc_y}")
-                self.model.grid.move_agent(self, (new_loc_x, new_loc_y))
+                
+                if(new_loc_x == -1): #no relocation done
+                    if(self.model.skip_if_not_happy): #se user defined, sto fermo e pass
+                        pass
+                    else:
+                        raise Exception("ERROR: No location available with the given homophily")
+                else:
+                    self.model.grid.move_agent(self, (new_loc_x, new_loc_y))
         else:
             self.model.total_happy += 1
