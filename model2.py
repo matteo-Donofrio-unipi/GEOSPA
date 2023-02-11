@@ -40,6 +40,9 @@ class SchellingModel(Model):
         self.homophily = homophily
         self.girdSize = side*side
         self.elapsed_step_time = 0
+        self.start_time_run = 0
+        self.elapsed_total_time = 0
+        
         
         #A scheduler which activates each agent once per step, in random order, with the order reshuffled every step
         self.schedule = RandomActivation(self)
@@ -56,7 +59,8 @@ class SchellingModel(Model):
         self.datacollector = DataCollector(
             {"perc_happy": lambda m: m.total_happy/m.schedule.get_agent_count(),
              "tot_seg": lambda m: np.mean([a.segregation for a in self.schedule.agents]),
-             "elapsed_step_time": lambda m: self.elapsed_step_time},
+             "elapsed_step_time": lambda m: self.elapsed_step_time,
+             "elapsed_total_time": lambda m: self.elapsed_total_time},
             {"x": lambda a: a.pos[0], 
              "y": lambda a: a.pos[1],
              "segregation": lambda a: a.segregation})
@@ -94,14 +98,21 @@ class SchellingModel(Model):
         Run one step of the model. If All agents are happy, halt the model.
         '''
         self.total_happy = 0  
+
+        if(self.schedule.steps == 0):
+            self.start_time_run = time.time()
+
+        if(self.schedule.steps == 199):
+            self.elapsed_total_time = time.time () - self.start_time_run
+
         start_time = time.time() 
         self.schedule.step() 
-        self.elapsed_step_time = time.time()  - start_time                                        #Call agents steps
-        self.datacollector.collect(self)                            #Collect all the data for the given model object    
+        self.elapsed_step_time = time.time()  - start_time                                        #Call agents steps    
         if self.total_happy == self.schedule.get_agent_count():     #Halt condition
             self.running = False
+            self.elapsed_total_time = time.time () - self.start_time_run
         #self.show()
-
+        self.datacollector.collect(self)
 
     def show(self):
         agent_counts = np.zeros((self.grid.width, self.grid.height))
