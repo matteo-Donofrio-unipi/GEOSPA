@@ -107,6 +107,7 @@ class SchellingModel(Model):
 
         start_time = time.time() 
         self.schedule.step() 
+        
         self.elapsed_step_time = time.time()  - start_time                                        #Call agents steps    
         if self.total_happy == self.schedule.get_agent_count():     #Halt condition
             self.running = False
@@ -221,7 +222,7 @@ class SchellingAgent(Agent):
         if(self.model.verbose):
             print(f"freeCellsRank è {self.freeCellsRank}")
 
-        self.segregation = self.freeCellsRank.iloc[0]["happiness"]
+        #self.segregation = self.freeCellsRank.iloc[0]["happiness"] lo calcola in step
         
         #choose the new location according to the chosen policy
         #["pure_random","mild_random","min_gain","max_gain"]:
@@ -241,13 +242,17 @@ class SchellingAgent(Agent):
             ret_x = int(df_happy.iloc[index]["x"])
             ret_y = int(df_happy.iloc[index]["y"])
 
-        if(self.model.relocation_policy == "min_gain"):     
+        elif(self.model.relocation_policy == "min_gain"):     
             ret_x = int(df_happy.iloc[-1]["x"])
             ret_y = int(df_happy.iloc[-1]["y"])
 
-        if(self.model.relocation_policy == "max_gain"):
+        elif(self.model.relocation_policy == "max_gain"):
             ret_x = int(df_happy.iloc[0]["x"])
             ret_y = int(df_happy.iloc[0]["y"])
+        
+        del df_happy
+        del self.freeCellsRank
+
         return ret_x, ret_y
                
                
