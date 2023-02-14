@@ -18,12 +18,14 @@ class SchellingModel(Model):
     '''
     Model class for the Schelling segregation model.
     '''
-    def __init__(self, side =10, density=0.7, minority_pc=0.3, homophily =0.3, relocation_policy="pure_random", neighborhood_type = 'abs', verbose = 0, skip_if_not_happy = False):
+    def __init__(self, side =10, density=0.7, minority_pc=0.3, homophily =0.3, relocation_policy="pure_random", neighborhood_type = 'rel', verbose = 0, skip_if_not_happy = False):
         '''
         side: side of the grid square
-        density: density of population
-        minority_pc: percentage of minority type (2 types in ths case) =>  minority: 0 = all blue, 1 = all red
-        homophily: percentage of neighbours requested of same type
+        density: density of population in the grid
+        minority_pc: percentage of minority type (2 types in ths case) =>  minority: 0 = only blue agents, 1 = only red agents
+        homophily: percentage of neighbours requested of same type (intollerance)
+        relocation_policy: algorithm used to relocate each agent
+        neighborhood_type: 
         '''
 
         if(relocation_policy  in ["pure_random","mild_random","min_gain","max_gain"]):
@@ -107,7 +109,7 @@ class SchellingModel(Model):
 
         start_time = time.time() 
         self.schedule.step() 
-        
+
         self.elapsed_step_time = time.time()  - start_time                                        #Call agents steps    
         if self.total_happy == self.schedule.get_agent_count():     #Halt condition
             self.running = False
@@ -221,8 +223,6 @@ class SchellingAgent(Agent):
         self.freeCellsRank.reset_index(inplace = True, drop=True)
         if(self.model.verbose):
             print(f"freeCellsRank è {self.freeCellsRank}")
-
-        #self.segregation = self.freeCellsRank.iloc[0]["happiness"] lo calcola in step
         
         #choose the new location according to the chosen policy
         #["pure_random","mild_random","min_gain","max_gain"]:
@@ -242,13 +242,25 @@ class SchellingAgent(Agent):
             ret_x = int(df_happy.iloc[index]["x"])
             ret_y = int(df_happy.iloc[index]["y"])
 
-        elif(self.model.relocation_policy == "min_gain"):     
-            ret_x = int(df_happy.iloc[-1]["x"])
-            ret_y = int(df_happy.iloc[-1]["y"])
+        elif(self.model.relocation_policy == "min_gain"):
+            min_val = df_happy.happiness.min()
+            df_happy = df_happy[df_happy["happiness"]==min_val]
+            if self.model.verbose:
+                print("df_happy è: ")
+                print(df_happy)
+            index = random.randint(0, len(df_happy)-1)    
+            ret_x = int(df_happy.iloc[index]["x"])
+            ret_y = int(df_happy.iloc[index]["y"])
 
         elif(self.model.relocation_policy == "max_gain"):
-            ret_x = int(df_happy.iloc[0]["x"])
-            ret_y = int(df_happy.iloc[0]["y"])
+            max_val = df_happy.happiness.min()
+            df_happy = df_happy[df_happy["happiness"]==max_val]
+            if self.model.verbose:
+                print("df_happy è: ")
+                print(df_happy)
+            index = random.randint(0, len(df_happy)-1)    
+            ret_x = int(df_happy.iloc[index]["x"])
+            ret_y = int(df_happy.iloc[index]["y"])
         
         del df_happy
         del self.freeCellsRank
