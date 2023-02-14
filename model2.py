@@ -27,6 +27,8 @@ class SchellingModel(Model):
         relocation_policy: algorithm used to relocate each agent
         neighborhood_type: 
         '''
+        print("VERB")
+        print(verbose)
 
         if(relocation_policy  in ["pure_random","mild_random","min_gain","max_gain"]):
             self.relocation_policy = relocation_policy 
@@ -245,6 +247,7 @@ class SchellingAgent(Agent):
         elif(self.model.relocation_policy == "min_gain"):
             min_val = df_happy.happiness.min()
             df_happy = df_happy[df_happy["happiness"]==min_val]
+            df_happy.reset_index(drop=True, inplace=True)
             if self.model.verbose:
                 print("df_happy è: ")
                 print(df_happy)
@@ -253,8 +256,9 @@ class SchellingAgent(Agent):
             ret_y = int(df_happy.iloc[index]["y"])
 
         elif(self.model.relocation_policy == "max_gain"):
-            max_val = df_happy.happiness.min()
+            max_val = df_happy.happiness.max()
             df_happy = df_happy[df_happy["happiness"]==max_val]
+            df_happy.reset_index(drop=True, inplace=True)
             if self.model.verbose:
                 print("df_happy è: ")
                 print(df_happy)
